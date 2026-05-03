@@ -8,6 +8,7 @@ type GameState = 'idle' | 'playing' | 'ended';
 interface HoleState {
   id: number;
   hasMole: boolean;
+  isRetracting: boolean;
 }
 
 function App() {
@@ -19,7 +20,7 @@ function App() {
   const [timeLeft, setTimeLeft] = useState(60);
   // 洞口状态数组
   const [holes, setHoles] = useState<HoleState[]>(
-    Array.from({ length: 9 }, (_, i) => ({ id: i, hasMole: false }))
+    Array.from({ length: 9 }, (_, i) => ({ id: i, hasMole: false, isRetracting: false }))
   );
   // 地鼠停留时间（毫秒）
   const [moleStayTime, setMoleStayTime] = useState(1500);
@@ -53,7 +54,7 @@ function App() {
     setGameState('playing');
     setScore(0);
     setTimeLeft(60);
-    setHoles(Array.from({ length: 9 }, (_, i) => ({ id: i, hasMole: false })));
+    setHoles(Array.from({ length: 9 }, (_, i) => ({ id: i, hasMole: false, isRetracting: false })));
     setMoleStayTime(1500);
     setMoleInterval(1500);
   }, []);
@@ -63,41 +64,54 @@ function App() {
     setGameState('ended');
     clearAllTimers();
     // 隐藏所有地鼠
-    setHoles(prev => prev.map(hole => ({ ...hole, hasMole: false })));
+    setHoles(prev => prev.map(hole => ({ ...hole, hasMole: false, isRetracting: false })));
   }, [clearAllTimers]);
 
   // 点击地鼠得分
   const whackMole = useCallback((holeId: number) => {
-    // 只有游戏进行中且洞口有地鼠时才能得分
-    if (gameState === 'playing' && holes[holeId].hasMole) {
+    // 只有游戏进行中且洞口有地鼠且不是正在缩回时才能得分
+    if (gameState === 'playing' && holes[holeId].hasMole && !holes[holeId].isRetracting) {
       setScore(prev => prev + 10);
-      // 点击后地鼠缩回
+      // 点击后地鼠先标记为正在缩回
       setHoles(prev => prev.map(hole => 
-        hole.id === holeId ? { ...hole, hasMole: false } : hole
+        hole.id === holeId ? { ...hole, isRetracting: true } : hole
       ));
+      // 等待动画完成后再真正隐藏地鼠
+      setTimeout(() => {
+        setHoles(prev => prev.map(hole => 
+          hole.id === holeId ? { ...hole, hasMole: false, isRetracting: false } : hole
+        ));
+      }, 300); // 与 CSS 动画时间一致
     }
   }, [gameState, holes]);
 
   // 随机让地鼠出现
   const spawnMole = useCallback(() => {
-    // 找出当前没有地鼠的洞口
-    const emptyHoles = holes.filter(hole => !hole.hasMole);
+    // 找出当前没有地鼠且不是正在缩回的洞口
+    const emptyHoles = holes.filter(hole => !hole.hasMole && !hole.isRetracting);
     
     if (emptyHoles.length > 0) {
       // 随机选择一个空洞口
       const randomIndex = Math.floor(Math.random() * emptyHoles.length);
       const selectedHoleId = emptyHoles[randomIndex].id;
 
-      // 让地鼠在这个洞口出现
+      // 让地鼠在这个洞口出现（确保 isRetracting 为 false）
       setHoles(prev => prev.map(hole => 
-        hole.id === selectedHoleId ? { ...hole, hasMole: true } : hole
+        hole.id === selectedHoleId ? { ...hole, hasMole: true, isRetracting: false } : hole
       ));
 
-      // 设置地鼠停留时间
+      // 设置地鼠停留时间，然后应用缩回动画
       setTimeout(() => {
+        // 先标记为正在缩回
         setHoles(prev => prev.map(hole => 
-          hole.id === selectedHoleId ? { ...hole, hasMole: false } : hole
+          hole.id === selectedHoleId && hole.hasMole ? { ...hole, isRetracting: true } : hole
         ));
+        // 等待动画完成后再真正隐藏地鼠
+        setTimeout(() => {
+          setHoles(prev => prev.map(hole => 
+            hole.id === selectedHoleId ? { ...hole, hasMole: false, isRetracting: false } : hole
+          ));
+        }, 300); // 与 CSS 动画时间一致
       }, moleStayTime);
     }
   }, [holes, moleStayTime]);
@@ -196,7 +210,7 @@ function App() {
           >
             <div className="hole-cover"></div>
             {hole.hasMole && (
-              <div className="mole">
+              <div className={`mole ${hole.isRetracting ? 'disappearing' : ''}`}>
                 <div className="mole-face">
                   <div className="mole-eyes">
                     <div className="mole-eye"></div>

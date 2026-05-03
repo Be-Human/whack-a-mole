@@ -201,6 +201,21 @@
   }
 }
 
+@keyframes mole-disappear {
+  0% {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(-50%) translateY(100%);
+    opacity: 0;
+  }
+}
+
+.mole.disappearing {
+  animation: mole-disappear 0.3s ease-in forwards;
+}
+
 .mole-face {
   position: relative;
   width: 100%;
